@@ -169,7 +169,7 @@ class TestCreateItem:
     @allure.title("Валидация значений в объекте статистики")
     @allure.description(
         "Проверка граничных и некорректных значений"
-        + "для лайков и просмотров (BUG-05, BUG-06)"
+        + " для лайков и просмотров (BUG-05, BUG-06)"
     )
     @allure.severity(allure.severity_level.NORMAL)
     
