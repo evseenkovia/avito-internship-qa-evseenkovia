@@ -8,7 +8,7 @@ async def api_client():
 
 @pytest_asyncio.fixture(loop_scope="session")
 async def created_item_id(api_client):
-    """Фикстура создания объявления без зависаний"""
+    
     payload = {
         "sellerId": random.randint(111111, 999999),
         "name": "Async Test Item",
@@ -23,3 +23,16 @@ async def created_item_id(api_client):
         
     status_text = response.json().get("status", "")
     return status_text.split(" - ")[-1].strip()
+
+@pytest_asyncio.fixture(loop_scope="session")
+async def item_for_deletion(api_client):
+    
+    payload = {
+        "sellerId": 111999,
+        "name": "Item to be deleted",
+        "price": 100,
+        "statistics": {"likes": 1, "viewCount": 1, "contacts": 1}
+    }
+    response = await api_client.post("/api/1/item", json=payload)
+    item_id = response.json().get("status").split(" - ")[-1].strip()
+    return item_id
