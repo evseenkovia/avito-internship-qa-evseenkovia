@@ -1,0 +1,24 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Pytest кэш
+.pytest_cache/
+
+# Виртуальное окружение
+.venv/
+venv/
+env/
+ENV/
+
+# VS Code файлы
+.vscode/
+
+# Allure отчеты
+allure-results/
+allure-report/
+
+# Файлы, генерируремые ОС
+.DS_Store
+Thumbs.db
