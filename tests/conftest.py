@@ -26,7 +26,6 @@ async def api_client():
 
 @pytest_asyncio.fixture(loop_scope="session")
 async def created_item_id(api_client):
-
     payload = {
         "sellerId": random.randint(111111, 999999),
         "name": "QA Test Item",
@@ -48,12 +47,9 @@ def valid_item_payload():
         seller_id=random.randint(111111, 999999),
         name="Игровой ноутбук",
         price=150000,
-        statistics=Statistics(
-            likes=10,
-            view_count=100,
-            contacts=15
-        ),
+        statistics=Statistics(likes=10, view_count=100, contacts=15),
     )
+
 
 @pytest.fixture
 def minimal_item_payload():
@@ -63,6 +59,7 @@ def minimal_item_payload():
         price=100,
         statistics=None,
     )
+
 
 @pytest.fixture
 def item_payload_factory():
@@ -82,13 +79,15 @@ def item_payload_factory():
 
 @pytest_asyncio.fixture(scope="session")
 async def created_item(api_client, valid_item_payload):
-    response = await api_client.post("/api/1/item",
-                                     json=valid_item_payload.model_dump(by_alias=True))
+    response = await api_client.post(
+        "/api/1/item", json=valid_item_payload.model_dump(by_alias=True)
+    )
     assert response.status_code == 200
     status_text = response.json().get("status", "")
     item_id = status_text.split(" - ")[-1].strip()
 
     return {"id": item_id, "payload": valid_item_payload}
+
 
 @pytest.fixture
 def fake_uuid():

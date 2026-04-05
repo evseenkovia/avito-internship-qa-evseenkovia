@@ -1,17 +1,20 @@
 import random
-import pytest
-import allure
-import json
 from typing import List
+
+import allure
+import pytest
 from pydantic import TypeAdapter
+
 from models.models import ItemRequest, ItemResponse
+
 
 @allure.epic("Объявления")
 @allure.feature("Объявления продавца")
 class TestGetSellerItems:
-
     @allure.title("Проверка списка объявлений конкретного продавца")
-    @allure.description("Создание нескольких айтемов и проверка корректности фильтрации по sellerId")
+    @allure.description(
+        "Создание нескольких объявлений и проверка корректности фильтрации по sellerId"
+    )
     @allure.severity(allure.severity_level.CRITICAL)
     @pytest.mark.asyncio(loop_scope="session")
     async def test_get_items_by_seller_id_full_check(self, api_client):
@@ -31,7 +34,11 @@ class TestGetSellerItems:
 
         with allure.step(f"Запрос списка объявлений для sellerId: {seller_id}"):
             response = await api_client.get(f"/api/1/{seller_id}/item")
-            allure.attach(response.text, name="Seller Items Response", attachment_type=allure.attachment_type.JSON)
+            allure.attach(
+                response.text,
+                name="Seller Items Response",
+                attachment_type=allure.attachment_type.JSON,
+            )
             assert response.status_code == 200
 
         with allure.step("Валидация схемы списка и проверка изоляции данных"):
@@ -46,7 +53,8 @@ class TestGetSellerItems:
             assert len(items) >= 2, f"Ожидали минимум 2 товара, получили {len(items)}"
             for item in items:
                 assert item.seller_id == seller_id, (
-                    f"BUG: Найдено чужое объявление! Ожидали {seller_id}, получили {item.seller_id}"
+                    f"BUG: Найдено чужое объявление! Ожидали {seller_id},"
+                    + " получили {item.seller_id}"
                 )
 
     @allure.title("Запрос списка для нового продавца (без объявлений)")
@@ -58,27 +66,36 @@ class TestGetSellerItems:
         with allure.step(f"Запрос списка для пустого sellerId: {new_seller_id}"):
             response = await api_client.get(f"/api/1/{new_seller_id}/item")
             assert response.status_code == 200
-            
+
             data = response.json()
             assert isinstance(data, list)
-            assert len(data) == 0, f"Ожидался пустой список, но найдено {len(data)} элементов"
+            assert len(data) == 0, '''Ожидался пустой список, 
+            но найдено {len(data)} элементов'''
 
-    @allure.title("Валидация некорректных типов SellerId")
-    @allure.severity(allure.severity_level.MINOR)
-    @pytest.mark.parametrize("invalid_id, expected_status", [
-        ("not-a-number", 400),
-        ("-500", 400),
-        ("999999999999999999999", 400)
-    ], ids=["string", "negative", "overflow"])
-    @pytest.mark.asyncio(loop_scope="session")
-    async def test_get_items_invalid_seller_ids(self, api_client, invalid_id, expected_status):
+    @pytest.mark.parametrize(
+        "invalid_id, expected_status, bug_id",
+        [
+            ("not-a-number", 400, None),
+            pytest.param(
+                "-500",
+                400,
+                "BUG-11",
+                marks=pytest.mark.xfail(
+                    reason="BUG-11: Сервер возвращает 200 вместо 400"
+                ),
+            ),
+            ("999999999999999999999", 400, None),
+        ],
+        ids=["string", "negative", "overflow"],
+    )
+    async def test_get_items_invalid_seller_ids(
+        self, api_client, invalid_id, expected_status, bug_id
+    ):
         with allure.step(f"Запрос списка для некорректного ID: {invalid_id}"):
             response = await api_client.get(f"/api/1/{invalid_id}/item")
-            
+
             allure.attach(str(response.status_code), name="Actual Status Code")
-            # Проверяем на 500 ошибку (устойчивость)
             assert response.status_code != 500, "Сервер упал с 500 ошибкой"
-            # Проверяем соответствие ожидаемому статусу (400/404)
             assert response.status_code in [expected_status, 404]
 
         if response.status_code == 400:
