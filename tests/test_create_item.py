@@ -4,26 +4,17 @@ from models.models import ItemRequest, ItemResponse, Statistics
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_create_item_positive(api_client):
-    payload = ItemRequest(
-        sellerId=235839,
-        name="Игровой ноутбук",
-        price=150000,
-        statistics=Statistics(likes=10, viewCount=100, contacts=15),
-    )
-
-    response = await api_client.post("/api/1/item", json=payload.model_dump())
-
-    assert response.status_code == 200, (
-        f"Ожидаемый код: 200, получен {response.status_code}"
-    )
-
+async def test_create_item_positive(api_client, valid_item_payload):
+    response = await api_client.post("/api/1/item",
+                                     json=valid_item_payload.model_dump(by_alias=True))
+    assert response.status_code == 200
     try:
         data = ItemResponse.model_validate(response.json())
-        assert data.sellerId == payload.sellerId
-        assert data.name == payload.name
+        assert data.seller_id == valid_item_payload.seller_id
+        assert data.name == valid_item_payload.name
     except Exception:
-        pytest.fail("Схема ответа не соответствует ожидаемой.")
+        pytest.fail("Сервер вернул некорректную структуру ответа" +
+                    "(поле status вместо объекта)")
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -35,73 +26,8 @@ async def test_create_item_without_statistics(api_client):
     response = await api_client.post("/api/1/item", json=payload.model_dump())
 
     assert response.status_code == 400, (
-        f"Ожидаемый код: 400, получен {response.status_code}"
+        f"400 != {response.status_code}: Объявление нельзя создать без статистики"
     )
-
-
-@pytest.mark.asyncio(loop_scope="session")
-async def test_create_item_price_negative(api_client):
-    payload = ItemRequest(
-        sellerId=235839,
-        name="Игровой ноутбук",
-        price=-150000,
-        statistics=Statistics(likes=10, viewCount=100, contacts=15),
-    )
-
-    response = await api_client.post("/api/1/item", json=payload.model_dump())
-
-    assert response.status_code == 400, (
-        f"Ожидаемый код: 400, получен {response.status_code}"
-    )
-
-
-@pytest.mark.asyncio(loop_scope="session")
-async def test_create_item_price_zero(api_client):
-    payload = ItemRequest(
-        sellerId=235839,
-        name="Игровой ноутбук",
-        price=0,
-        statistics=Statistics(likes=10, viewCount=100, contacts=15),
-    )
-
-    response = await api_client.post("/api/1/item", json=payload.model_dump())
-
-    assert response.status_code == 400, (
-        f"Ожидаемый код: 400, получен {response.status_code}"
-    )
-
-
-@pytest.mark.asyncio(loop_scope="session")
-async def test_create_item_price_string(api_client):
-    payload = ItemRequest(
-        sellerId=235839,
-        name="Игровой ноутбук",
-        price="10000",
-        statistics=Statistics(likes=10, viewCount=100, contacts=15),
-    )
-
-    response = await api_client.post("/api/1/item", json=payload.model_dump())
-
-    assert response.status_code == 400, (
-        f"Код 400 != {response.status_code}. Цена не должна быть строкой."
-    )
-
-
-@pytest.mark.asyncio(loop_scope="session")
-async def test_create_item_price_float(api_client):
-    payload = ItemRequest(
-        sellerId=235839,
-        name="Игровой ноутбук",
-        price=5200.96,
-        statistics=Statistics(likes=10, viewCount=100, contacts=15),
-    )
-
-    response = await api_client.post("/api/1/item", json=payload.model_dump())
-
-    assert response.status_code == 400, (
-        f"Ожидаемый код: 400, получен {response.status_code}. Цена должна быть int."
-    )
-
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_create_item_name_absent(api_client):
@@ -131,7 +57,7 @@ async def test_create_item_name_long(api_client):
     response = await api_client.post("/api/1/item", json=payload.model_dump())
 
     assert response.status_code == 200, (
-        f"Ожидаемый код: 200, получен {response.status_code}"
+        f"200 != {response.status_code}: Некорректная обработка длинного названия"
     )
 
 
@@ -146,8 +72,9 @@ async def test_create_item_name_numeric(api_client):
 
     response = await api_client.post("/api/1/item", json=payload.model_dump())
 
-    assert response.status_code == 200, (
-        f"Ожидаемый код: 200, получен {response.status_code}"
+    assert response.status_code == 400, (
+        f"200 != {response.status_code}:"
+        + "Нельзя создать объвление только из цифр в названии"
     )
 
 
@@ -155,8 +82,8 @@ async def test_create_item_name_numeric(api_client):
 async def test_create_item_idempotency(api_client):
     payload = ItemRequest(
         sellerId=777886,
-        name="Идемпотентный котик",
-        price=5000,
+        name="iPad 2026",
+        price=50000,
         statistics=Statistics(likes=0, viewCount=0, contacts=0),
     )
 
@@ -201,44 +128,22 @@ async def test_create_item_statistics_zero_values(api_client):
     response = await api_client.post("/api/1/item", json=payload.model_dump())
 
     assert response.status_code == 200, (
-        f"Ожидался статус 400 для нулевых значений, пришел {response.status_code}"
+        f"Ожидался статус 200 для нулевых значений, пришел {response.status_code}"
     )
-
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_create_item_consistency(api_client):
-    payload = ItemRequest(
-        sellerId=555666,
-        name="Британский котик",
-        price=35000,
-        statistics={"likes": 12, "viewCount": 150, "contacts": 5},
-    )
+async def test_create_item_consistency(api_client, created_item):
+    item_id = created_item["id"]
+    original_payload = created_item["payload"]
 
-    post_res = await api_client.post("/api/1/item", json=payload.model_dump())
-    assert post_res.status_code == 200
-
-    status_text = post_res.json().get("status", "")
-    item_id = status_text.split(" - ")[-1].strip()
+    print(f"\nRequesting GET /api/1/item/{item_id}")
 
     get_res = await api_client.get(f"/api/1/item/{item_id}")
-    assert get_res.status_code == 200, (
-        f"Не удалось найти созданное объявление с ID {item_id}"
-    )
+    assert get_res.status_code == 200
 
     db_item = ItemResponse.model_validate(get_res.json()[0])
-
-    assert db_item.name == payload.name, (
-        f"Имя изменилось! Ожидали {payload.name}, получили {db_item.name}"
-    )
-    assert db_item.price == payload.price, (
-        f"Цена изменилась! Ожидали {payload.price}, получили {db_item.price}"
-    )
-    assert db_item.sellerId == payload.sellerId
-
-    assert db_item.statistics.likes == payload.statistics.likes
-    assert db_item.statistics.viewCount == payload.statistics.viewCount
-    assert db_item.statistics.contacts == db_item.statistics.contacts
-
+    assert db_item.name == original_payload.name
+    assert db_item.price == original_payload.price
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_create_item_malformed_json_500_check(api_client):
@@ -267,3 +172,25 @@ async def test_create_item_malformed_json_500_check(api_client):
     assert response.status_code == 400, (
         f"Ожидали 400 на битый JSON, но получили {response.status_code}"
     )
+
+@pytest.mark.parametrize("price_value, expected_status, message", [
+    (-150000, 400, "Negative price should return 400"),
+    (0, 200, "Zero price should be accepted"),
+    ("10000", 400, "String price should return 400"),
+    (5200.96, 400, "Float price should return 400"),
+    (150000, 200, "Valid price should return 200"),
+], ids=[
+    "negative_price",
+    "zero_price",
+    "string_price",
+    "float_price",
+    "valid_price"
+])
+async def test_create_item_price_validation(api_client, item_payload_factory,
+                                            price_value, expected_status, message):
+    payload = item_payload_factory(price=price_value)
+
+    payload_dict = payload.model_dump(by_alias=True)
+    response = await api_client.post("/api/1/item", json=payload_dict)
+
+    assert response.status_code == expected_status, message

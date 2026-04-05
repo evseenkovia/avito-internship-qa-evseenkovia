@@ -14,16 +14,19 @@ def normalize_stats(data: Union[dict, list]) -> Statistics:
 
 @pytest.mark.parametrize("api_version", ["api/1", "api/2"])
 @pytest.mark.asyncio(loop_scope="session")
-async def test_statistic_consistency_v1_v2(api_client, api_version):
-    target_stats = Statistics(likes=777, viewCount=1000, contacts=50)
-    payload = {
-        "sellerId": 999888,
-        "name": f"Item for {api_version}",
-        "price": 100000,
-        "statistics": target_stats.model_dump(),
-    }
+async def test_statistic_consistency_v1_v2(api_client, api_version,
+                                        item_payload_factory):
+    target_stats = Statistics(likes=777, view_count=1000, contacts=50)
+    target_id = 949888
+    payload = item_payload_factory(
+        sellerId=target_id,
+        name=f"Item for {api_version}",
+        price=100000,
+        statistics=target_stats
+    )
 
-    post_res = await api_client.post("/api/1/item", json=payload)
+    post_res = await api_client.post("/api/1/item",
+                                    json=payload.model_dump(by_alias=True))
     item_id = post_res.json().get("status").split(" - ")[-1].strip()
 
     stat_res = await api_client.get(f"/{api_version}/statistic/{item_id}")
@@ -31,15 +34,16 @@ async def test_statistic_consistency_v1_v2(api_client, api_version):
 
     received_data = normalize_stats(stat_res.json())
     assert received_data.likes == target_stats.likes
-    assert received_data.viewCount == target_stats.viewCount
+    assert received_data.view_count == target_stats.view_count
     assert received_data.contacts == target_stats.contacts
 
     target_stats = Statistics(likes=777, viewCount=1000, contacts=50)
     payload = ItemRequest(
-        sellerId=999888, name="Kia optima", price=100000, statistics=target_stats
+        sellerId=949888, name="Kia optima", price=100000, statistics=target_stats
     )
 
-    post_res = await api_client.post("/api/1/item", json=payload.model_dump())
+    post_res = await api_client.post("/api/1/item",
+                                    json=payload.model_dump(by_alias=True))
     assert post_res.status_code == 200
 
     item_id = post_res.json().get("status").split(" - ")[-1].strip()
@@ -63,7 +67,7 @@ async def test_statistic_consistency_v1_v2(api_client, api_version):
     assert received_stat.likes == target_stats.likes, (
         f"Ожидали {target_stats.likes} лайков, получили {received_stat.likes}"
     )
-    assert received_stat.viewCount == target_stats.viewCount
+    assert received_stat.view_count == target_stats.view_count
     assert received_stat.contacts == target_stats.contacts
 
 
