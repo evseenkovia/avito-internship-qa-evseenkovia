@@ -1,6 +1,5 @@
 import pytest
 from models.models import ItemRequest, ItemResponse, Statistics
-from client.api_client import api_client
 
 @pytest.mark.asyncio(loop_scope="session")
 async def test_create_item_positive(api_client):
@@ -170,6 +169,22 @@ async def test_create_item_statistics_negative(api_client):
     assert response.status_code == 400, (
         f"Ожидался статус 400 для отрицательной статистики, но пришел {response.status_code}"
     )
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_create_item_statistics_zero_values(api_client):
+    
+    payload = ItemRequest(
+        sellerId=111222,
+        name="Котик со странной статистикой",
+        price=1000,
+        statistics=Statistics(likes=0, viewCount=0, contacts=0)
+    )
+    
+    response = await api_client.post("/api/1/item", json=payload.model_dump())
+    
+    assert response.status_code == 200, (
+        f"Ожидался статус 400 для нулевых значений статистики, но пришел {response.status_code}"
+    )
     
 @pytest.mark.asyncio(loop_scope="session")
 async def test_create_item_consistency(api_client):
@@ -199,3 +214,29 @@ async def test_create_item_consistency(api_client):
     assert db_item.statistics.likes == payload.statistics.likes
     assert db_item.statistics.viewCount == payload.statistics.viewCount
     assert db_item.statistics.contacts == db_item.statistics.contacts
+
+
+@pytest.mark.asyncio(loop_scope="session")
+async def test_create_item_malformed_json_500_check(api_client):
+
+    malformed_json_string = """
+    {
+        "sellerId": 123456,
+        "name": "Broken JSON Item",
+        "price": 100,
+        "statistics": {
+            "likes": 10,
+            "viewCount": 100,
+            "contacts": 15
+    """
+    
+    headers = {"Content-Type": "application/json"}
+    
+    response = await api_client.post("/api/1/item", content=malformed_json_string, headers=headers)
+    
+    assert response.status_code != 500, (
+        f"Сервер упал с 500 ошибкой при парсинге битого JSON. "
+        f"Фактический статус: {response.status_code}"
+    )
+    
+    assert response.status_code == 400, f"Ожидали 400 на битый JSON, но получили {response.status_code}"
